@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Albion Calculator - Wheat & Soup</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=MedievalSharp&family=Metamorphous&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==================================================
+           SOBER THEME WITH GOLDEN ACCENTS
+        ================================================== */
+        
+        :root {
+            --bg-dark:      #121212;
+            --panel-bg:     #1e1e24;
+            --border-gold:  #c5a059;
+            --text-gold:    #d4c48a;
+            --text-light:   #f0f0f0;
+            --text-muted:   #888888;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            margin: 0;
+            padding: 0;
+        }
+        
+        .medieval-font { 
+            font-family: 'MedievalSharp', cursive; 
+        }
+        
+        .parchment-font { 
+            font-family: 'Metamorphous', serif; 
+        }
+        
+        /* ===== MAIN PANELS ===== */
+        .panel {
+            background-color: var(--panel-bg);
+            border: 1px solid #333333;
+            border-radius: 4px;
+            padding: 1.5rem;
+        }
+        
+        .panel-header {
+            color: var(--text-gold);
+            border-bottom: 1px solid rgba(197, 160, 89, 0.2);
+            padding-bottom: 0.75rem;
+            margin-bottom: 1.25rem;
+            font-weight: 700;
+        }
+        
+        /* ===== INPUT FIELDS ===== */
+        .wood-input {
+            background-color: #222226;
+            border: 1px solid #3a3a3a;
+            color: var(--text-light);
+            transition: all 0.2s;
+            border-radius: 2px;
+        }
+        .wood-input:focus {
+            border-color: var(--border-gold);
+            outline: none;
+        }
+        
+        /* ===== BUTTONS ===== */
+        .gold-btn {
+            background-color: transparent;
+            color: var(--text-gold);
+            border: 1px solid var(--border-gold);
+            padding: 0.4rem 0.8rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .gold-btn:hover {
+            background-color: rgba(197, 160, 89, 0.1);
+        }
+        
+        /* ===== RESULTS ===== */
+        .results-card {
+            background-color: #1a1c20;
+            border: 1px solid #333333;
+            border-radius: 4px;
+            padding: 1.5rem;
+        }
+        
+        .result-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 2px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .badge-profitable {
+            background-color: rgba(0, 150, 100, 0.15);
+            color: #00ff9d;
+            border: 1px solid rgba(0, 150, 100, 0.3);
+        }
+        .badge-unprofitable {
+            background-color: rgba(200, 50, 50, 0.15);
+            color: #ff6464;
+            border: 1px solid rgba(200, 50, 50, 0.3);
+        }
+        
+        /* SCROLLBAR */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { 
+            background: #3a3a3a; 
+            border-radius: 4px;
+            border: 1px solid var(--bg-dark);
+        }
+        ::-webkit-scrollbar-thumb:hover { background: var(--border-gold); }
+    </style>
+    
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://esm.sh/react@^19.2.3",
+        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+        "react/": "https://esm.sh/react@^19.2.3/"
+      }
+    }
+    </script>
+</head>
+<body class="min-h-screen pb-16 selection:bg-[#c5a059] selection:text-[#121212]">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo } = React;
+        const SEEDS_TOTAL = 144;
+
+        /* Reusable input component */
+        const InputGroup = ({ label, value, onChange, unit, max }) => (
+            <div className="flex flex-col gap-2.5">
+                <label className="text-[10px] font-bold text-[var(--text-gold)] uppercase tracking-wider">{label}</label>
+                <div className="relative">
+                    <input 
+                        type="number"
+                        value={value}
+                        onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 0;
+                            if (max !== undefined && val > max) onChange(max);
+                            else onChange(val);
+                        }}
+                        className="w-full wood-input py-3 px-4 text-base font-medium"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-bold text-[var(--text-gold)] uppercase opacity-80">
+                        {unit}
+                    </span>
+                </div>
+            </div>
+        );
+
+        const App = () => {
+            const [farming, setFarming] = useState({
+                seedPrice: 2500,
+                seedsRecovered: 126,
+                wheatHarvested: 860,
+                marketWheatPrice: 480,
+            });
+
+            const [crafting, setCrafting] = useState({
+                wheatPerCraft: 16,
+                foodPerCraft: 10,
+                returnRate: 15,
+                wheatPriceUsed: 480,
+            });
+
+            /* Calculations */
+            const results = useMemo(() => {
+                // Section 3 - Farming Calculations
+                const seedsBought = Math.max(0, SEEDS_TOTAL - farming.seedsRecovered);
+                const realCycleCost = seedsBought * farming.seedPrice;
+                const costPerWheat = farming.wheatHarvested > 0 ? realCycleCost / farming.wheatHarvested : 0;
+                const diffMarket = farming.marketWheatPrice - costPerWheat;
+                const isFarmingProfitable = costPerWheat < farming.marketWheatPrice;
+
+                // Section 4 - Food Calculations
+                const effectiveWheatConsumed = crafting.wheatPerCraft * (1 - (crafting.returnRate / 100));
+                const realCraftCost = effectiveWheatConsumed * crafting.wheatPriceUsed;
+                const costPerFood = crafting.foodPerCraft > 0 ? realCraftCost / crafting.foodPerCraft : 0;
+
+                return {
+                    seedsBought,
+                    realCycleCost: Math.round(realCycleCost),
+                    costPerWheat: Math.round(costPerWheat),
+                    diffMarket: Math.round(diffMarket),
+                    isFarmingProfitable,
+                    effectiveWheatConsumed: Number(effectiveWheatConsumed.toFixed(2)),
+                    realCraftCost: Math.round(realCraftCost),
+                    costPerFood: Math.round(costPerFood)
+                };
+            }, [farming, crafting]);
+
+            const bindWheatPrice = () => {
+                setCrafting(prev => ({ ...prev, wheatPriceUsed: results.costPerWheat }));
+            };
+
+            return (
+                <div className="max-w-6xl mx-auto px-4 mt-8">
+                    {/* HEADER */}
+                    <header className="mb-10 text-center border-b border-[var(--border-gold)] pb-6">
+                        <h1 className="medieval-font text-3xl font-bold text-[var(--text-gold)] tracking-widest uppercase">
+                            Albion's Wheat Soup Optimizer
+                        </h1>
+                        <p className="text-[var(--text-gold)] text-xs font-bold tracking-[0.4em] uppercase mt-2 opacity-90">
+                            Specialized Calculator - Wheat & Soup
+                        </p>
+                    </header>
+
+                    <main className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        {/* LEFT COLUMN - INPUTS */}
+                        <div className="lg:col-span-7 space-y-8">
+                            {/* FARMING SECTION */}
+                            <section className="panel">
+                                <h2 className="medieval-font panel-header text-xl flex items-center gap-2">
+                                    ▶ Farming
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <InputGroup 
+                                        label="Seed Unit Price" 
+                                        value={farming.seedPrice} 
+                                        onChange={v => setFarming({...farming, seedPrice: v})} 
+                                        unit="Ag" 
+                                    />
+                                    <InputGroup 
+                                        label="Seeds Recovered" 
+                                        value={farming.seedsRecovered} 
+                                        onChange={v => setFarming({...farming, seedsRecovered: v})} 
+                                        max={SEEDS_TOTAL} 
+                                        unit="u" 
+                                    />
+                                    <InputGroup 
+                                        label="Wheat Harvested" 
+                                        value={farming.wheatHarvested} 
+                                        onChange={v => setFarming({...farming, wheatHarvested: v})} 
+                                        unit="u" 
+                                    />
+                                    <InputGroup 
+                                        label="Market Wheat Price" 
+                                        value={farming.marketWheatPrice} 
+                                        onChange={v => setFarming({...farming, marketWheatPrice: v})} 
+                                        unit="Ag" 
+                                    />
+                                </div>
+                            </section>
+
+                            {/* CRAFTING SECTION */}
+                            <section className="panel">
+                                <h2 className="medieval-font panel-header text-xl flex items-center gap-2">
+                                    ▶ Cooking (Wheat Soup)
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                    <div className="col-span-full mb-3">
+                                        <div className="flex justify-between items-center mb-2">
+                                            <label className="text-[10px] font-bold text-[var(--text-gold)] uppercase tracking-widest">Wheat Price Used</label>
+                                            <button 
+                                                onClick={bindWheatPrice} 
+                                                className="gold-btn"
+                                            >
+                                                Use Farming Cost
+                                            </button>
+                                        </div>
+                                        <input 
+                                            type="number" 
+                                            value={crafting.wheatPriceUsed} 
+                                            onChange={e => setCrafting({...crafting, wheatPriceUsed: parseFloat(e.target.value) || 0})} 
+                                            className="w-full wood-input py-3 px-4 text-base font-medium"
+                                        />
+                                    </div>
+                                    <InputGroup 
+                                        label="Wheat per Craft" 
+                                        value={crafting.wheatPerCraft} 
+                                        onChange={v => setCrafting({...crafting, wheatPerCraft: v})} 
+                                        unit="u" 
+                                    />
+                                    <InputGroup 
+                                        label="Food per Craft" 
+                                        value={crafting.foodPerCraft} 
+                                        onChange={v => setCrafting({...crafting, foodPerCraft: v})} 
+                                        unit="u" 
+                                    />
+                                    <div className="md:col-span-2">
+                                        <InputGroup 
+                                            label="Return Rate (%)" 
+                                            value={crafting.returnRate} 
+                                            onChange={v => setCrafting({...crafting, returnRate: v})} 
+                                            unit="%" 
+                                            max={100} 
+                                        />
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* RIGHT COLUMN - RESULTS */}
+                        <div className="lg:col-span-5">
+                            <div className="results-card parchment-font">
+                                {/* FARMING SUMMARY */}
+                                <div className="mb-8">
+                                    <h3 className="medieval-font text-xl font-bold text-center border-b border-[var(--border-gold)] py-2 mb-4">
+                                        FARMING – SUMMARY
+                                    </h3>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between"><span>Seeds Planted:</span> <span>{SEEDS_TOTAL}</span></div>
+                                        <div className="flex justify-between"><span>Seeds Recovered:</span> <span>{farming.seedsRecovered}</span></div>
+                                        <div className="flex justify-between"><span>Seeds Bought:</span> <span>{results.seedsBought}</span></div>
+                                        <div className="flex justify-between"><span>Seed Price:</span> <span>{farming.seedPrice} Ag</span></div>
+                                        <div className="flex justify-between border-t border-gray-700 pt-2 font-medium">
+                                            <span>Real Cycle Cost:</span> 
+                                            <span>{results.realCycleCost.toLocaleString()} Ag</span>
+                                        </div>
+                                        
+                                        <div className="pt-4 space-y-2">
+                                            <div className="flex justify-between"><span>Wheat Harvested:</span> <span>{farming.wheatHarvested}</span></div>
+                                            <div className="flex justify-between"><span>Cost per Wheat:</span> <span>{results.costPerWheat} Ag</span></div>
+                                            <div className="flex justify-between"><span>Market Price:</span> <span>{farming.marketWheatPrice} Ag</span></div>
+                                            <div className="flex justify-between border-t border-gray-700 pt-2">
+                                                <span>Profit/Loss:</span> 
+                                                <span>{results.diffMarket} Ag / wheat</span>
+                                            </div>
+                                            <div className={`text-center ${results.isFarmingProfitable ? 'badge-profitable' : 'badge-unprofitable'}`}>
+                                                {results.isFarmingProfitable ? 'PROFITABLE' : 'UNPROFITABLE'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* CRAFT FOOD SUMMARY */}
+                                <div>
+                                    <h3 className="medieval-font text-xl font-bold text-center border-b border-[var(--border-gold)] py-2 mb-4">
+                                        COOKING – WHEAT SOUP
+                                    </h3>
+                                    <div className="space-y-2 text-sm">
+                                        <div className="flex justify-between"><span>Wheat Used:</span> <span>{crafting.wheatPerCraft}</span></div>
+                                        <div className="flex justify-between"><span>Return Rate:</span> <span>{crafting.returnRate} %</span></div>
+                                        <div className="flex justify-between"><span>Eff. Wheat Consumed:</span> <span>{results.effectiveWheatConsumed}</span></div>
+                                        
+                                        <div className="pt-4 space-y-2">
+                                            <div className="flex justify-between"><span>Food Output:</span> <span>{crafting.foodPerCraft}</span></div>
+                                            <div className="flex justify-between"><span>Real Craft Cost:</span> <span>{results.realCraftCost.toLocaleString()} Ag</span></div>
+                                            <div className="flex justify-between border-t border-gray-700 pt-2 font-medium">
+                                                <span>Cost per Food:</span> 
+                                                <span>{results.costPerFood.toLocaleString()} Ag</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-10 pt-6 text-center opacity-70 select-none">
+                                    <div className="inline-block px-4 py-2 border border-[var(--border-gold)] rounded medieval-font text-xs font-bold text-[var(--text-gold)] rotate-[-5deg] uppercase tracking-widest">
+                                        Nezuko Approved
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                    
+                    <footer className="max-w-6xl mx-auto px-4 mt-12 text-center pb-8">
+                        <p className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-widest">
+                            Exact maths, Sections 3 & 4 Protocol
+                        </p>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
